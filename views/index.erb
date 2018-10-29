@@ -1,0 +1,268 @@
+<html>
+<head>
+
+<script type="text/javascript" src="javascript/jquery.js"></script>
+<script type="text/javascript">
+  class viewUp {
+    constructor(x, y, opts) {
+      opts = opts || {};
+
+      this.x = x;
+      this.y = y;
+      this.radius = 6;
+      this.consumed = false;
+      this._id = "viewUp-" + String(x) + String(y) + String(parseInt(Math.random()*10000000));
+      this.isFalling = opts.isFalling || false;
+
+      // this.draw();
+    };
+
+    draw() {
+      var canvas2 = document.getElementById('myCanvas2');
+      var ctx2 = canvas2.getContext('2d');
+
+      ctx2.fillStyle = "black";
+      ctx2.beginPath();
+      ctx2.arc(this.x, this.y, this.radius, 0, 2*Math.PI, true);
+      ctx2.fill();
+    };
+    isInView() {
+      var distanceToCenterOfView = Math.sqrt(Math.pow(this.x - circle.x, 2) + Math.pow(this.y - circle.y, 2), 2);
+      var inView = distanceToCenterOfView <= circle.radius + this.radius;
+      return inView;
+    };
+    consume() {
+      this.consumed = true;
+
+      // Increase visible radius
+      circle.radius += 6;
+      drawCircle();
+    };
+    fallStep() {
+      if (this.consumed) return;
+
+      var oldX = this.x;
+      var oldY = this.y;
+
+      var stepSize = 2;
+      if (this.y + stepSize > boardHeight) {
+        this.y = 0;
+      } else {
+        this.y += stepSize;
+      }
+    };
+  };
+
+  function endLevel() {
+    var iterator = 0;
+    var endLevelLoop = setInterval(function() {
+      circle.radius += 16;
+      drawCircle();
+      iterator += 1;
+      if (iterator > 100) {
+        clearInterval(endLevelLoop);
+        init();
+      }
+    }, 10);
+    level = (level && level.nextLevel && levels[level.nextLevel]) || {};
+  };
+
+  var levels = [
+    {
+      falling: false,
+      nextLevel: 1,
+      imgSrc: "images/jk_fb_pic.jpg"
+    },
+    {
+      falling: true,
+      nextLevel: 2,
+      imgSrc: "images/dmerr_pic.jpg"
+    }
+  ];
+  level = levels[0];
+
+  boardWidth = 0
+  boardHeight = 0
+  circle = {
+    x: 0,
+    y: 0,
+    radius: 0
+  };
+
+  viewUps = [];
+  numViewUps = 0;
+  function initViewUps(levelParams) {
+    if (viewUps.length == 0 && numViewUps > 0) {
+      for (var i = 0; i < numViewUps; i++) {
+        viewUps.push(new viewUp(Math.random()*boardWidth, Math.random()*boardHeight, {
+          isFalling: levelParams.falling ? Math.random() < 0.3 : false
+        }));
+      }
+    }
+  };
+
+  function clearCircle(context,x,y,radius) {
+    context.save();
+    context.beginPath();
+    context.arc(x, y, radius, 0, 2*Math.PI, true);
+    context.clip();
+    context.clearRect(x-radius,y-radius,radius*2,radius*2);
+    context.restore();
+    // context.stroke();
+  }
+  function drawCircle() {
+    var canvas2 = document.getElementById('myCanvas2');
+    var ctx2 = canvas2.getContext('2d');
+
+    ctx2.fillStyle = "black";
+    ctx2.fillRect(0, 0, ctx2.canvas.width, ctx2.canvas.height);
+
+    clearCircle(ctx2, circle.x, circle.y, circle.radius);
+  };
+
+  function fitToWindow() {
+    var canvas = document.getElementById('myCanvas2');
+    var ctx = canvas.getContext('2d');
+    ctx.canvas.width  = window.innerWidth;
+    ctx.canvas.height = window.innerHeight;
+  };
+
+  function init() {
+    if (Object.keys(level).length == 0) {
+      $("body").html("<div style='position:absolute;width:100%;height:100%;left:0px;top:0px;background-color:black;'><span style='color:white'>You completed the game.<br/><br/>Now go do something useful.</span></div>");
+      return;
+    }
+
+    $("body").css("background-image", "url("+level.imgSrc+")");
+    fitToWindow();
+
+    var canvas = document.getElementById('myCanvas2');
+    var ctx = canvas.getContext('2d');
+    boardWidth = ctx.canvas.width;
+    boardHeight = ctx.canvas.height;
+    circle.x = parseInt(Math.random()*boardWidth);
+    circle.y = parseInt(Math.random()*boardHeight);
+    circle.radius = 16;
+
+    drawCircle();
+
+    viewUps = [];
+    numViewUps = parseInt(Math.random()*40)+60;
+    initViewUps(level);
+    displayViewUpsRemaining(0);
+  };
+
+  function displayViewUpsRemaining(consumed) {
+    if (consumed == undefined) {
+      var consumed = 0;
+      viewUps.forEach(function(viewUp) {
+        if (viewUp.consumed) {
+          consumed += 1;
+        }
+      });
+    }
+
+    $("#dots-remaining").html("<span style='font-size:8px'>Level "+(level.nextLevel-1)+"<br/>Consumed<br/>(Spacebar)</span><br/>"+consumed+"/"+numViewUps);
+  };
+
+  downedMovementKeys = [];
+  $(window).on("keydown", function(e) {
+    if ([37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+      downedMovementKeys[e.keyCode] = true;
+    } else if (e.keyCode == 32) {
+      // Spacebar
+      var consumedViewUps = 0;
+      viewUps.forEach(function(viewUp) {
+        if (!viewUp.consumed && viewUp.isInView()) {
+          viewUp.consume();
+          consumedViewUps += 1;
+        } else if (viewUp.consumed) {
+          consumedViewUps += 1;
+        }
+      });
+
+      displayViewUpsRemaining(consumedViewUps);
+
+      if (consumedViewUps == numViewUps) {
+        // We've consumed all the dots
+        endLevel();
+      }
+    }
+  });
+  $(window).on("keyup", function(e) {
+    if ([37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+      downedMovementKeys[e.keyCode] = false;
+    }
+  });
+  var movementKeyFns = {
+    37: function() {
+      // Left key
+      circle.x = Math.max(circle.x - 1, - circle.radius/2);
+    },
+    38: function(playerElement, top, left, height, width) {
+      // Up key
+      circle.y = Math.max(circle.y - 1, - circle.radius/2);
+    },
+    39: function(playerElement, top, left, height, width) {
+      // Right key
+      circle.x = Math.min(circle.x + 1, boardWidth - circle.radius/2);
+    },
+    40: function(playerElement, top, left, height, width) {
+      // Down key
+      circle.y = Math.min(circle.y + 1, boardHeight - circle.radius/2);
+    }
+  };
+  var movementLoop = setInterval(function() {
+    [37, 38, 39, 40].forEach(function(movementKey) {
+      if (downedMovementKeys[movementKey]) {
+        movementKeyFns[movementKey]();
+      }
+    });
+  }, 10);
+
+  var drawVisibleThingsLoop = setInterval(function() {
+    drawCircle();
+    viewUps.forEach(function(viewUp) {
+      viewUps.forEach(function(viewUp) {
+        if (!viewUp.consumed && viewUp.isInView()) {
+          viewUp.draw();
+        }
+      });
+    });
+  }, 10);
+
+  var fallingLoop = setInterval(function() {
+    viewUps.forEach(function(viewUp) {
+      if (viewUp.isFalling) {
+        viewUp.fallStep();
+      }
+    });
+  }, 10);
+</script>
+
+<style type="text/css">
+  body {
+    /*background-color: black;*/
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    overflow: hidden;
+    font-family: arial;
+  }
+  #dots-remaining {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    background-color: white;
+    color: black;
+    padding: 2px;
+    z-index: 100;
+  }
+</style>
+
+</head>
+<body onload="init();">
+
+<span id="dots-remaining"></span>
+<canvas id="myCanvas2" width="600" height="300" style="position:absolute;top:0px;left:0px"></canvas>
+
+</body>
